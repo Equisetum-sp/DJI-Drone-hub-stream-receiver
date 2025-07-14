@@ -7,6 +7,7 @@ from datetime import datetime
 from multiprocessing import Process, Manager
 
 FRAME_OFFSET = 450
+FULL_SEI_UID = 1272825341085959061573
 
 # localIP    = "192.168.31.144"
 
@@ -156,7 +157,7 @@ def listenRTSP(droneDataDict: dict, rtspURL):
             pos = 0
 
             size = sei[0]; pos += 1
-            uuid1 = int.from_bytes(sei[pos:(pos + 8)], byteorder="big", signed=False); pos += 8
+            uuid1 = int.from_bytes(sei[pos:(pos + 16)], byteorder="big", signed=False); pos += 8
             uuid2 = int.from_bytes(sei[pos:(pos + 8)], byteorder="big", signed=False); pos += 8
 
             # Decode if uuid meets criteria
