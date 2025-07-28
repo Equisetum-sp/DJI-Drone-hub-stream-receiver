@@ -1,3 +1,4 @@
+import json
 import socket
 import bisect
 
@@ -14,7 +15,7 @@ FULL_SEI_UID = 1272825341085959061573
 localDJIRTSPPort = 8554
 localUDPPort = 10004
 
-bufferSize = 24
+bufferSize = 1024
 # bufferSize = 65504
 
 
@@ -110,32 +111,36 @@ def findPTS(sortedList, key):
 
 
 def listenUDP(droneDataDict: dict, udpServerSocket: socket):
+    # change to JSON
     print("UDP server up and listening {}", udpServerSocket)
 
     while True:
         try:
             bytesAddressPair = udpServerSocket.recvfrom(bufferSize)
 
-            message = bytesAddressPair[0]
+            message = bytesAddressPair[0].decode('utf-8')
             # address = bytesAddressPair[1]
 
-            pos = 0
-            presentationTimeMs = int.from_bytes(message[pos:(pos + 8)], "big"); pos += 8
+            jsonData = json.loads(message)
 
-            battery = message[pos]; pos += 1
-            gpsCount = message[pos]; pos += 1
-            alt = int.from_bytes(message[pos:(pos + 4)], "big", signed=True); pos += 4
-            lat = int.from_bytes(message[pos:(pos + 4)], "big", signed=True); pos += 4
-            lng = int.from_bytes(message[pos:(pos + 4)], "big", signed=True); pos += 4
-            facing = int.from_bytes(message[pos:(pos + 2)], "big", signed=True); pos += 2
+            if 'pts' in jsonData:
+                presentationTimeMs = jsonData['pts']
+                battery = jsonData['battery']
+                gpsCount = jsonData['gpsCount']
+                alt = jsonData['alt']
+                lat = jsonData['lat']
+                lng = jsonData['lng']
+                facing = jsonData['facing']
 
-            data = DroneData(battery, gpsCount, alt, lat, lng, facing)
-            droneDataDict[presentationTimeMs] = data
+                data = DroneData(battery, gpsCount, alt, lat, lng, facing)
+                droneDataDict[presentationTimeMs] = data
 
-            logMsg = "{} {} Drone Data:{}".format(datetime.now(), presentationTimeMs, vars(data))
-            print(logMsg)
+                logMsg = "{} {} Drone Data:{}".format(datetime.now(), jsonData['pts'], jsonData)
+                print(logMsg)
+
         except KeyboardInterrupt:
             break
+
 
 def listenRTSP(droneDataDict: dict, rtspURL):
     print("RTSP URL: {}".format(rtspURL))
@@ -157,10 +162,12 @@ def listenRTSP(droneDataDict: dict, rtspURL):
             pos = 0
 
             size = sei[0]; pos += 1
-            uuid1 = int.from_bytes(sei[pos:(pos + 16)], byteorder="big", signed=False); pos += 8
+            uuid1 = int.from_bytes(sei[pos:(pos + 8)], byteorder="big", signed=False); pos += 8
             uuid2 = int.from_bytes(sei[pos:(pos + 8)], byteorder="big", signed=False); pos += 8
 
             # Decode if uuid meets criteria
+
+            # if uuid1 == FULL_SEI_UID:
             if uuid1 == 69 and uuid1 == uuid2:
                 seiPTS = (int.from_bytes(sei[pos:(pos + size)], byteorder="big", signed=False)) - FRAME_OFFSET
 
@@ -190,11 +197,11 @@ def listenRTSP(droneDataDict: dict, rtspURL):
                               f"Curr PTS: {currDataPTS}",
                               f"battery: {'-' if currData is None else currData.battery}",
                               f"gpsCount: {'-' if currData is None else currData.gpsCount}",
-                              f"alt: {0.0 if currData is None else float(currData.alt) / 1_000}",
-                              f"lat: {0.0 if currData is None else float(currData.lat) / 1_000_000}",
-                              f"lng: {0.0 if currData is None else float(currData.lng) / 1_000_000}",
-                              f"facing: {'-' if currData is None else float(currData.facing) / 10}",
-                              f"[{'-' if currData is None else convertDegreeToWindDirection(float(currData.facing) / 10)}]"]
+                              f"alt: {0.0 if currData is None else float(currData.alt)}",
+                              f"lat: {0.0 if currData is None else float(currData.lat)}",
+                              f"lng: {0.0 if currData is None else float(currData.lng)}",
+                              f"facing: {'-' if currData is None else float(currData.facing)}",
+                              f"[{'-' if currData is None else convertDegreeToWindDirection(float(currData.facing))}]"]
 
             y0 = 30
             for i in range(0, len(timestamp_text)):
